@@ -6,6 +6,8 @@ const NAME = "My Token";
 const SYMBOL = "MT";
 
 const DEFAULT_MINTING_CAP = ethers.utils.parseEther('1000');
+const PER_ADDRESS_MINTING_CAP_MORE_THAN_DEFAULT = ethers.utils.parseEther('10000');
+const PER_ADDRESS_MINTING_CAP_LESS_THAN_DEFAULT = ethers.utils.parseEther('100');
 
 const ROLE_MINTER = web3.utils.soliditySha3('MINTER_ROLE');
 const DEFAULT_ADMIN_ROLE = '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -20,6 +22,33 @@ describe('ERC20BoundMintableUpgradeable', () => {
 
         return { token, minter, admin };
     }
+
+    describe('Minting process', () => {
+
+        it('should allow MINTER to mint tokens until default cap is exceeded', async () => {
+            const { token, minter, admin } = await loadFixture();
+
+            await token["addMinter(address)"](minter.address);
+
+            await token.connect(minter).mint(admin.address, DEFAULT_MINTING_CAP);
+            await expectRevert(token.connect(minter).mint(admin.address, 1), "ERC20BoundMintableUpgradeable: minting cap exceeded");
+        });
+
+        [
+            { value: DEFAULT_MINTING_CAP, caption: "per-address cap equal to default exceeded" },
+            { value: PER_ADDRESS_MINTING_CAP_MORE_THAN_DEFAULT, caption: "per-address cap less than default exceeded" },
+            { value: PER_ADDRESS_MINTING_CAP_LESS_THAN_DEFAULT, caption: "per-address cap more than default exceeded" }
+        ].forEach(
+            param => it(`should allow MINTER to mint tokens until ${param.caption}`, async () => {
+                const { token, minter, admin } = await loadFixture();
+
+                await token["addMinter(address,uint256)"](minter.address, param.value);
+    
+                await token.connect(minter).mint(admin.address, param.value);
+                await expectRevert(token.connect(minter).mint(admin.address, 1), "ERC20BoundMintableUpgradeable: minting cap exceeded");
+            })
+        );
+    }); 
 
     describe('Minting access rights', () => {
         it('should allow user with admin role to add minter', async () => {
