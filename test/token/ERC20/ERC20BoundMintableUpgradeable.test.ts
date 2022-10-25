@@ -1,3 +1,4 @@
+import { fail } from "assert";
 import { expect } from "chai";
 import { ethers, upgrades, web3 } from "hardhat";
 import expectRevert from "../../utils/expectRevert";
@@ -48,9 +49,58 @@ describe('ERC20BoundMintableUpgradeable', () => {
                 await expectRevert(token.connect(minter).mint(admin.address, 1), "ERC20BoundMintableUpgradeable: minting cap exceeded");
             })
         );
+
+        it('should return amount of minted tokens by given minter', async () => {
+            const { token, minter, admin } = await loadFixture();
+
+            await token["addMinter(address,uint256)"](minter.address, PER_ADDRESS_MINTING_CAP_MORE_THAN_DEFAULT);
+
+            const tokensToMint = PER_ADDRESS_MINTING_CAP_MORE_THAN_DEFAULT.div(2);
+
+            await token.connect(minter).mint(admin.address, tokensToMint);
+            const mintedTokens = await token.amountOfMintedTokens(minter.address);
+
+            expect(mintedTokens).to.eq(tokensToMint);
+        });
+
+        it('should revert if called mintingCap with non-minter', async () => {
+            const { token, minter } = await loadFixture();
+
+            await expectRevert(token.mintingCap(minter.address), "ERC20BoundMintableUpgradeable: Not a minter");
+        });
+
+        it('should revert if called amountOfMintedTokens with non-minter', async () => {
+            const { token, minter } = await loadFixture();
+
+            await expectRevert(token.amountOfMintedTokens(minter.address), "ERC20BoundMintableUpgradeable: Not a minter");
+        });
+
+        it('should return cap of minted tokens by given minter', async () => {
+            const { token, minter } = await loadFixture();
+
+            await token["addMinter(address)"](minter.address);
+
+            const tokensCap = await token.mintingCap(minter.address);
+
+            expect(tokensCap).to.eq(DEFAULT_MINTING_CAP);
+        });
     }); 
 
     describe('Minting access rights', () => {
+        it('should return true if account isMinter()', async () => {
+            const { token, minter, admin } = await loadFixture();
+
+            await token.connect(admin)["addMinter(address)"](minter.address);
+
+            expect(await token.isMinter(minter.address)).to.true;
+        });
+
+        it('should return false if account not isMinter()', async () => {
+            const { token, minter } = await loadFixture();
+
+            expect(await token.isMinter(minter.address)).to.false;
+        });
+
         it('should allow user with admin role to add minter', async () => {
             const { token, minter, admin } = await loadFixture();
 
@@ -106,13 +156,13 @@ describe('ERC20BoundMintableUpgradeable', () => {
 
             await token["addMinter(address)"](minter.address);
             expect(await token.hasRole(ROLE_MINTER, minter.address)).to.true;
-            await expectRevert(token.connect(admin)["addMinter(address)"](minter.address), "Already a minter");
+            await expectRevert(token.connect(admin)["addMinter(address)"](minter.address), "ERC20BoundMintableUpgradeable: Already a minter");
         });
 
         it('should revert if trying to removeMinter() with a non-minter address', async () => {
             const { token, admin } = await loadFixture();
 
-            await expectRevert(token.connect(admin).removeMinter(admin.address), "Not a minter");
+            await expectRevert(token.connect(admin).removeMinter(admin.address), "ERC20BoundMintableUpgradeable: Not a minter");
         });
     });
 });

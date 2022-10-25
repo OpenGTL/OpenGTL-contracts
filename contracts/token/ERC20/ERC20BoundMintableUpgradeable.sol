@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**
  * @dev ERC20 upgradeable token with support of bound minting
@@ -38,6 +38,20 @@ abstract contract ERC20BoundMintableUpgradeable is AccessControlUpgradeable, ERC
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    function isMinter(address minter) public view returns (bool) {
+        return hasRole(MINTER_ROLE, minter);
+    }
+
+    function mintingCap(address minter) public view returns (uint256) {
+        require(isMinter(minter), "ERC20BoundMintableUpgradeable: Not a minter");
+        return _mintCapsPerAccount[minter];
+    }
+
+    function amountOfMintedTokens(address minter) public view returns (uint256) {
+        require(isMinter(minter), "ERC20BoundMintableUpgradeable: Not a minter");
+        return _mintedAmounts[minter];
+    }
+
     function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
         _mint(to, amount);
     }
@@ -63,7 +77,7 @@ abstract contract ERC20BoundMintableUpgradeable is AccessControlUpgradeable, ERC
      * Reverts if account hasn't MINTER_ROLE.
      */
     function removeMinter(address minter) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(hasRole(MINTER_ROLE, minter), "Not a minter");
+        require(isMinter(minter), "ERC20BoundMintableUpgradeable: Not a minter");
 
         _revokeRole(MINTER_ROLE, minter);
     }
@@ -76,7 +90,7 @@ abstract contract ERC20BoundMintableUpgradeable is AccessControlUpgradeable, ERC
     }
 
     function _addMinter(address newMinter, uint256 mintCap) internal {
-        require(!hasRole(MINTER_ROLE, newMinter), "Already a minter");
+        require(!isMinter(newMinter), "ERC20BoundMintableUpgradeable: Already a minter");
 
         _mintedAmounts[newMinter] = 0;
         _mintCapsPerAccount[newMinter] = mintCap;
